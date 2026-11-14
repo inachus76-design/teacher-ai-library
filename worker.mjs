@@ -1,4 +1,4 @@
-import { pbkdf2Sync } from 'node:crypto';
+import { scryptSync } from 'node:crypto';
 
 const encode = value => new TextEncoder().encode(value);
 const hex = bytes => Array.from(new Uint8Array(bytes), b => b.toString(16).padStart(2, '0')).join('');
@@ -8,7 +8,7 @@ const sections = new Set(['categories', 'resources', 'attachments']);
 const cookie = (token, age) => 'teacher_session=' + token + '; Path=/; HttpOnly; Secure; SameSite=Strict; Max-Age=' + age;
 
 function passwordHash(password, salt) {
-  return pbkdf2Sync(password, salt, 600000, 32, 'sha256').toString('hex');
+  return scryptSync(password, salt, 32, {N:32768, r:8, p:3, maxmem:64 * 1024 * 1024}).toString('hex');
 }
 
 function equalHash(a, b) {
@@ -94,4 +94,5 @@ export default {
     }
   }
 };
+
 
