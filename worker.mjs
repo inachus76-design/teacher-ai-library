@@ -1,3 +1,5 @@
+import { pbkdf2Sync } from 'node:crypto';
+
 const encode = value => new TextEncoder().encode(value);
 const hex = bytes => Array.from(new Uint8Array(bytes), b => b.toString(16).padStart(2, '0')).join('');
 const hashToken = async token => hex(await crypto.subtle.digest('SHA-256', encode(token)));
@@ -5,9 +7,8 @@ const random = () => hex(crypto.getRandomValues(new Uint8Array(32)));
 const sections = new Set(['categories', 'resources', 'attachments']);
 const cookie = (token, age) => 'teacher_session=' + token + '; Path=/; HttpOnly; Secure; SameSite=Strict; Max-Age=' + age;
 
-async function passwordHash(password, salt) {
-  const key = await crypto.subtle.importKey('raw', encode(password), 'PBKDF2', false, ['deriveBits']);
-  return hex(await crypto.subtle.deriveBits({name:'PBKDF2', hash:'SHA-256', salt:encode(salt), iterations:600000}, key, 256));
+function passwordHash(password, salt) {
+  return pbkdf2Sync(password, salt, 600000, 32, 'sha256').toString('hex');
 }
 
 function equalHash(a, b) {
@@ -93,3 +94,4 @@ export default {
     }
   }
 };
+
