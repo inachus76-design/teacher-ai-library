@@ -408,3 +408,33 @@ if (online) {
 
 
 
+
+<script>
+if (online) {
+  const modal = document.createElement('dialog');
+  modal.style.cssText='width:min(92vw,440px);border:1px solid #bacbbc;border-radius:20px;padding:24px;color:inherit';
+  modal.setAttribute('aria-labelledby','registrationTitle');
+  modal.innerHTML='<form class="resource-form"><h2 id="registrationTitle">교사 계정 등록</h2><label for="registrationName">교사 아이디</label><input id="registrationName" required minlength="3" maxlength="40" autocomplete="username" placeholder="영문·숫자 또는 _ . - 문자 3~40자"><label for="registrationPassword">비밀번호</label><input id="registrationPassword" type="password" required minlength="12" maxlength="128" autocomplete="new-password" placeholder="비밀번호 12~128자"><div class="row"><button class="primary">계정 등록</button><button type="button">취소</button></div><p role="status"></p></form>';
+  document.body.append(modal);
+  const form=modal.querySelector('form'), name=$('registrationName'), password=$('registrationPassword');
+  const submit=form.querySelector('button'), status=form.querySelector('[role=status]');
+  $('signup').addEventListener('click',event=>{
+    event.stopImmediatePropagation();
+    status.textContent='';
+    if ($('username').value.trim()) name.value=$('username').value.trim();
+    modal.showModal();
+  },true);
+  modal.querySelector('[type=button]').addEventListener('click',()=>modal.close());
+  modal.addEventListener('close',()=>{password.value='';});
+  form.addEventListener('submit',async event=>{
+    event.preventDefault();
+    submit.disabled=true;
+    try {
+      const {id}=await api('signup','POST',{username:name.value.trim(),password:password.value});
+      location.assign(libraryLink(id));
+    } catch(error) {
+      status.textContent={400:'아이디와 비밀번호 형식을 확인해 주세요.',409:'이미 사용 중인 아이디입니다.',429:'잠시 후 다시 시도해 주세요.'}[error.status] || '계정을 등록하지 못했습니다. 잠시 후 다시 시도해 주세요.';
+    } finally {submit.disabled=false;}
+  });
+}
+</script>
