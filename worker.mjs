@@ -29,7 +29,25 @@ async function api(request, env, url) {
   const tokenHash = token && await hashToken(token);
   const session = tokenHash && await db.prepare('SELECT teacher_id FROM sessions WHERE token_hash=? AND expires>?')
     .bind(tokenHash, Date.now()).first();
-  if (path === '/api/session' && request.method === 'GET') return json({id:session?.teacher_id || null});
+  const adminToken = request.headers.get('Cookie')?.match(/(?:^|;\s*)library_admin=([a-f0-9]{64})(?:;|$)/)?.[1];
+  const adminHash = adminToken && 'admin:' + await hashToken(adminToken);
+  const admin = adminHash && await db.prepare('SELECT teacher_id FROM sessions WHERE token_hash=? AND expires>?')
+    .bind(adminHash, Date.now()).first();
+  if (path === '/api/session' && request.method === 'GET') return json({id:session?.teacher_id || null, editId:admin?.teacher_id || null});
+  if (path === '/api/admin/lock' && request.method === 'POST') {
+    if (adminHash) await db.prepare('DELETE FROM sessions WHERE token_hash=?').bind(adminHash).run();
+    return json({},200,{'Set-Cookie':'library_admin=; Path=/; HttpOnly; Secure; SameSite=Strict; Max-Age=0'});
+  }
+  if (path === '/api/admin/unlock' && request.method === 'POST') {
+    const {id, number} = await request.json();
+    if (typeof id !== 'string' || typeof number !== 'string' || number.length < 12 || number.length > 128) return json({},400);
+    const teacher = await db.prepare('SELECT * FROM teachers WHERE id=?').bind(id).first();
+    const digest = passwordHash(number,teacher?.salt || '00000000000000000000000000000000');
+    if (!teacher || !equalHash(digest,teacher.password_hash)) return json({},401);
+    const fresh = random();
+    await db.prepare('INSERT INTO sessions VALUES (?,?,?)').bind('admin:' + await hashToken(fresh),id,Date.now()+1800000).run();
+    return json({},200,{'Set-Cookie':'library_admin='+fresh+'; Path=/; HttpOnly; Secure; SameSite=Strict; Max-Age=1800'});
+  }
   if (path === '/api/logout' && request.method === 'POST') {
     if (tokenHash) await db.prepare('DELETE FROM sessions WHERE token_hash=?').bind(tokenHash).run();
     return json({},200,{'Set-Cookie':cookie('',0)});
@@ -68,7 +86,7 @@ async function api(request, env, url) {
     return json(Object.fromEntries(results.map(row => [row.section,JSON.parse(row.payload)])));
   }
   if (sections.has(section) && request.method === 'PUT') {
-    if (session?.teacher_id !== id) return json({},403);
+    if (admin?.teacher_id !== id) return json({},403);
     if (Number(request.headers.get('Content-Length')) > 900000) return json({},413);
     const payload = await request.text();
     if (encode(payload).length > 900000) return json({},413);
@@ -94,5 +112,6 @@ export default {
     }
   }
 };
+
 
 
